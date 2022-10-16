@@ -1,3 +1,6 @@
+//To compile, please enter the following into a terminal opened to the directory this file is in.
+//cl /EHsc CENG_325_Proj1.cpp
+
 #include <iostream>
 #include <iomanip>
 #include <cmath>
@@ -8,11 +11,13 @@ using namespace std;
 *   Function Prototypes
 **************************************************************************** */
 
+bool is_power_of_two(int num_to_check);
+
 int get_num_data_bits();
 
 int get_num_parity_bits(int num_data_bits);
 
-int* generate_data_bits(int num_data_bits);
+int* generate_data_bits_array_p(int num_data_bits);
 
 int** generate_encode_array_G(int num_total_bits, int num_data_bits);
 
@@ -20,13 +25,99 @@ int** generate_parity_check_array_H(int num_parity_bits, int num_total_bits);
 
 int** generate_decode_array_R(int num_data_bits, int num_total_bits);
 
+int* encode_data_bits_p(int** encode_array_G, int* data_bits_p, int num_total_bits);
+
+int* parity_check(int** parity_check_array_H, int* encoded_data, int num_parity_bits);
+
+/* ****************************************************************************
+*   Function Definitions
+**************************************************************************** */
+
 int main()
 {
+    int num_data_bits = 0;
+    int num_parity_bits = 0;
+    int num_total_bits = 0;
+    int* data_bits_p = 0;
+    int** encode_array_G = 0;
+    int** parity_check_array_H = 0;
+    int** decode_array_R = 0;
 
+    srand( static_cast<unsigned int>(time(NULL)) );      //For generating the data bits later.
 
-    srand(time(NULL));      //For generating the data bits later.
+    //Prompt the user for the number of data bits.
+    num_data_bits = get_num_data_bits();
 
+    //Ensure the user entered a number greater than one, as specified by the "For an A" requirements.
+    if( num_data_bits <= 1 )
+    {
+        cout << "Please enter a number greater than 1." << endl;
+
+        return -1;
+    }
+
+    //Generate the number of parity bits, then caculate the total number of bits.
+    num_parity_bits = get_num_parity_bits(num_data_bits);
+    num_total_bits = num_data_bits + num_parity_bits;
+
+    //Randomly generate some data bits.
+    data_bits_p = generate_data_bits_array_p(num_data_bits);
+
+    //Show the user the generated message.
+    cout << setw(47) << left << "Your Message Is" << ":  [";
+
+    for( int i = 0; i < (num_data_bits - 1); i++ )
+    {
+        cout << data_bits_p[i] << ' ';
+    }
+
+    cout << data_bits_p[num_data_bits - 1] << ']' << endl;
+
+    //Generate the encoding array, G, of 'total bits' rows and 'data bits' columns.
+    encode_array_G = generate_encode_array_G(num_total_bits, num_data_bits);
+
+    //Generate the parity check array, H, of 'parity bits' rows and 'total bits' columns.
+    parity_check_array_H = generate_parity_check_array_H(num_parity_bits, num_total_bits);
+
+    //Generate the decoding array, H, of 'data bits' rows and 'total bits' columns.
+    decode_array_R = generate_decode_array_R(num_data_bits, num_total_bits);
+
+    
+
+    //Free up any dynamically allocated variables from main.
+
+    delete[] data_bits_p;
+
+    for( int i = 0; i < num_total_bits; i++ )
+    {
+        delete[] encode_array_G[i];
+    }
+    delete[] encode_array_G;
+
+    for( int i = 0; i < num_parity_bits; i++ )
+    {
+        delete[] parity_check_array_H[i];
+    }
+    delete[] parity_check_array_H;
+
+    for( int i = 0; i < num_data_bits; i++ )
+    {
+        delete[] decode_array_R[i];
+    }
+    delete[] decode_array_R;
+
+    //End scene.
     return 0;
+}
+
+bool is_power_of_two(int num)
+{
+    //A number is a power of two if the bitwise AND of it and itself minus 1 is 0.
+    //We also only want the positve powers, 1, 2, 4, 8, etc.
+
+    //eg. num = 4.  4 = 100.  4-1 = 3 = 011.  100 AND 011 = 000. Power of 2.
+    //eg. num = 5.  5 = 101.  5-1 = 4 = 100.  101 AND 100 = 100. Not Power of 2.
+    return (num > 0) && ((num & (num - 1)) == 0);
 }
 
 int get_num_data_bits()
@@ -59,36 +150,213 @@ int get_num_parity_bits(int num_data_bits)
     return num_parity_bits;
 }
 
-int* generate_data_bits(int num_data_bits)
+int* generate_data_bits_array_p(int num_data_bits)
 {
-    int* data_bit_array = 0;
-    data_bit_array = new int[num_data_bits];
+    int* data_bits_p = 0;
+    data_bits_p = new int[num_data_bits];
 
     for( int i = 0; i < num_data_bits; i++ )
     {
-        data_bit_array[i] = rand() % 2;     //Generate either 0 or 1 for every data bit.
+        data_bits_p[i] = rand() % 2;     //Generate either 0 or 1 for every data bit.
     }
 
-    return data_bit_array;
+    return data_bits_p;
 }
 
 int** generate_encode_array_G(int num_total_bits, int num_data_bits)
 {
-    int** encode_array = 0;
+    int** encode_array_G = 0;
+    int identity_counter = 0;
+    int parity_counter = 0;
+    int bit_number = 0;
+    int k = 0;
 
-    return encode_array;
+    //Create the array with the proper dimensions.
+
+    encode_array_G = new int* [num_total_bits];
+    for( int i = 0; i < num_total_bits; i++ )
+    {
+        encode_array_G[i] = new int [num_data_bits];
+    }
+
+    //Initialize with zeroes.
+
+    for( int i = 0; i < num_total_bits; i++ )
+    {
+        for( int j = 0; j < num_data_bits; j++ )
+        {
+            encode_array_G[i][j] = 0;
+        }
+    }
+
+    //Fill in the values with ones in the correct locations.
+
+    for( int i = 0; i < num_total_bits; i++ )
+    {
+        
+        
+        //For every row, check if it corresponds to a parity bit (power of 2).
+        //If it is, put a one in the columns corresponding to the data bits covered by that parity bit.
+        //If it isn't, put a row from the identity matrix in instead.
+
+        if( is_power_of_two(i + 1) )
+        {
+            k = 1;
+
+            for (int j = 0; j < num_data_bits; j++)
+            {
+                //For every column in row i, get the location of a data bit in a hypothetical encoded string.
+                //j=0, k=3; j=1, k=5; j=2, k=6; etc.
+
+                while( is_power_of_two(k) )
+                {
+                    k += 1;
+                }
+
+                bit_number = k;
+                k += 1;
+
+                //The first parity bit covers data bits in positions xxx1, the second xx1x, and so on.
+                //To find if a data bit is covered by a certain parity bit, shift the data bit location right by
+                //the number of parity bits completed, and then bitwise AND with 1 to find if we need to place a 1 in G.
+
+                for(int m = 0; m < parity_counter; m++)
+                {
+                    bit_number = bit_number >> 1;
+                }
+
+                if( (bit_number & 1) == 1)
+                {
+                    encode_array_G[i][j] = 1;
+                }
+                
+            }
+
+            parity_counter += 1;
+        }
+        else
+        {
+            encode_array_G[i][identity_counter] = 1;
+            identity_counter += 1;
+        }
+    }
+
+    return encode_array_G;
 }
 
 int** generate_parity_check_array_H(int num_parity_bits, int num_total_bits)
 {
-    int** parity_check_array = 0;
+    int** parity_check_array_H = 0;
+    int bit_number = 0;
+    int shift_number = 0;
 
-    return parity_check_array;
+    //Create the array with proper dimensions.
+
+    parity_check_array_H = new int* [num_parity_bits];
+
+    for( int i = 0; i < num_parity_bits; i++ )
+    {
+        parity_check_array_H[i] = new int[num_total_bits];
+    }
+
+    //Initialize with zeroes.
+
+    for( int i = 0; i < num_parity_bits; i++ )
+    {
+        for( int j = 0; j < num_total_bits; j++ )
+        {
+            parity_check_array_H[i][j] = 0;
+        }
+    }
+
+    /*
+    * Each row in H corresponds to a parity bit, and the columns correspond to
+    * which bits are covered by a parity bit.
+    * First row  = 1 0 1 0 1 0 1....
+    * Second row = 0 1 1 0 0 1 1....
+    * Third row  = 0 0 0 1 1 1 1....
+    * and so on.
+    * 
+    * We can use the same logic from generating G,
+    * but instead of ignoring parity bit locations,
+    * we include all bits.
+    */
+
+    for (int i = 0; i < num_parity_bits; i++)
+    {
+        bit_number = 1;
+
+        for (int j = 0; j < num_total_bits; j++)
+        {
+            shift_number = bit_number;
+
+            //The first parity bit covers data bits in positions xxx1, the second xx1x, and so on.
+            //To find if a data bit is covered by a certain parity bit, shift the data bit location right by
+            //the number of parity bits (rows) completed, and then bitwise AND with 1 to find if we need to place a 1 in H.
+
+            for (int m = 0; m < i; m++)
+            {
+                shift_number = shift_number >> 1;
+            }
+
+            if ((shift_number & 1) == 1)
+            {
+                parity_check_array_H[i][j] = 1;
+            }
+
+            bit_number += 1;
+        }
+    }
+
+    return parity_check_array_H;
 }
 
 int** generate_decode_array_R(int num_data_bits, int num_total_bits)
 {
-    int** decode_array = 0;
+    int** decode_array_R = 0;
+    int curr_row_for_identity = 0;
 
-    return decode_array;
+    //Create the array with proper dimensions.
+    decode_array_R = new int* [num_data_bits];
+
+    for( int i = 0; i < num_data_bits; i++ )
+    {
+        decode_array_R[i] = new int[num_total_bits];
+    }
+
+    //Initialize with zeros.
+    for( int i = 0; i < num_data_bits; i++ )
+    {
+        for( int j = 0; j < num_total_bits; j++ )
+        {
+            decode_array_R[i][j] = 0;
+        }
+    }
+
+    //Create the identity matrix in the columns that are not powers of two.
+    for( int i = 0; i < num_total_bits; i++ )
+    {
+        if( !( is_power_of_two(i + 1) ) )
+        {
+            decode_array_R[curr_row_for_identity][i] = 1;
+            
+            curr_row_for_identity += 1;
+        }
+    }
+
+    return decode_array_R;
+}
+
+int* encode_data_bits_p(int** encode_array_G, int* data_bits_p, int num_total_bits)
+{
+    int* encoded_data_x = 0;
+
+    return encoded_data_x;
+}
+
+int* parity_check(int** parity_check_array_H, int* encoded_data_x, int num_parity_bits)
+{
+    int* syndrome_z = 0;
+
+    return syndrome_z;
 }
