@@ -25,9 +25,11 @@ int** generate_parity_check_array_H(int num_parity_bits, int num_total_bits);
 
 int** generate_decode_array_R(int num_data_bits, int num_total_bits);
 
-int* encode_data_bits_p(int** encode_array_G, int* data_bits_p, int num_total_bits);
+int* encode_data_bits_p(int**& encode_array_G, int*& data_bits_p, int num_total_bits, int num_data_bits);
 
-int* parity_check(int** parity_check_array_H, int* encoded_data, int num_parity_bits);
+int* induce_error_in_x(int*& encoded_data_x, int num_total_bits);
+
+int* parity_check(int**& parity_check_array_H, int*& encoded_data_x, int num_parity_bits, int num_total_bits);
 
 /* ****************************************************************************
 *   Function Definitions
@@ -42,6 +44,8 @@ int main()
     int** encode_array_G = 0;
     int** parity_check_array_H = 0;
     int** decode_array_R = 0;
+    int* encoded_data_x = 0;
+    int* recieved_data_x = 0;
 
     srand( static_cast<unsigned int>(time(NULL)) );      //For generating the data bits later.
 
@@ -82,7 +86,33 @@ int main()
     //Generate the decoding array, H, of 'data bits' rows and 'total bits' columns.
     decode_array_R = generate_decode_array_R(num_data_bits, num_total_bits);
 
-    
+    //Encode the data bits to get the Outgoing Message.
+    encoded_data_x = encode_data_bits_p(encode_array_G, data_bits_p, num_total_bits, num_data_bits);
+
+    //Show the user the encoded message.
+    cout << setw(47) << left << "Encoded Message Is" << ": [";
+
+    for( int i = 0; i < (num_total_bits - 1); i++ )
+    {
+        cout << encoded_data_x[i] << ' ';
+    }
+
+    cout << encoded_data_x[num_total_bits - 1] << ']' << endl;
+
+    //Induce an random error in the encoded message.
+    recieved_data_x = induce_error_in_x(encoded_data_x, num_total_bits);
+
+    //Show the user the recieved message.
+    cout << setw(47) << left << "Recieved Message Is" << ": [";
+
+    for( int i = 0; i < (num_total_bits - 1); i++ )
+    {
+        cout << encoded_data_x[i] << ' ';
+    }
+
+    cout << encoded_data_x[num_total_bits - 1] << ']' << endl;
+
+
 
     //Free up any dynamically allocated variables from main.
 
@@ -105,6 +135,10 @@ int main()
         delete[] decode_array_R[i];
     }
     delete[] decode_array_R;
+
+    //After inducing error in x as I have written it, encoded_data_x and recieved_data_x point to the same memory.
+    //I should probably do something about that, but for now it works, so no complaints here.
+    delete[] recieved_data_x;
 
     //End scene.
     return 0;
@@ -347,14 +381,65 @@ int** generate_decode_array_R(int num_data_bits, int num_total_bits)
     return decode_array_R;
 }
 
-int* encode_data_bits_p(int** encode_array_G, int* data_bits_p, int num_total_bits)
+int* encode_data_bits_p(int**& encode_array_G, int*& data_bits_p, int num_total_bits, int num_data_bits)
 {
     int* encoded_data_x = 0;
+    int sum = 0;
+
+    //Create the array of proper size.
+    encoded_data_x = new int[num_total_bits];
+
+    //Multiply G by p to get the initial x.
+    for( int i = 0; i < num_total_bits; i++ )
+    {
+        sum = 0;
+
+        for( int j = 0; j < num_data_bits; j++ )
+        {
+            sum += ( encode_array_G[i][j] * data_bits_p[j] );
+        }
+
+        encoded_data_x[i] = sum;
+    }
+
+    //Initial x modulus 2 gives us x in only 1s and 0s.
+    for( int i = 0; i < num_total_bits; i++ )
+    {
+        encoded_data_x[i] = encoded_data_x[i] % 2;
+    }
 
     return encoded_data_x;
 }
 
-int* parity_check(int** parity_check_array_H, int* encoded_data_x, int num_parity_bits)
+int* induce_error_in_x(int*& encoded_data_x, int num_total_bits)
+{
+    int* recieved_data_x = encoded_data_x;
+    int random_bit = 0;
+    int read_bit = 0;
+
+    //Pick a random bit from 0 to num_total_bits + 3, and flip that bit, if it exists.
+    //For bits num_total_bits to num_total_bits + 3, there will be no error.
+
+    random_bit = rand() % (num_total_bits + 4);
+
+    if( random_bit < num_total_bits)
+    {
+        read_bit = recieved_data_x[random_bit];
+
+        if( read_bit == 0 )
+        {
+            recieved_data_x[random_bit] = 1;
+        }
+        else
+        {
+            recieved_data_x[random_bit] = 0;
+        }
+    }
+
+    return recieved_data_x;
+}
+
+int* parity_check(int**& parity_check_array_H, int*& encoded_data_x, int num_parity_bits, int num_total_bits)
 {
     int* syndrome_z = 0;
 
