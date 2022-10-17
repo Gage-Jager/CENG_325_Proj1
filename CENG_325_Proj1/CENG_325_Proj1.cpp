@@ -27,9 +27,13 @@ int** generate_decode_array_R(int num_data_bits, int num_total_bits);
 
 int* encode_data_bits_p(int**& encode_array_G, int*& data_bits_p, int num_total_bits, int num_data_bits);
 
-int* induce_error_in_x(int*& encoded_data_x, int num_total_bits);
+void induce_error_in_x(int*& encoded_data_x, int num_total_bits);
 
 int* parity_check(int**& parity_check_array_H, int*& encoded_data_x, int num_parity_bits, int num_total_bits);
+
+void fix_error(int*& syndrome_z, int*& encoded_data_x, int num_parity_bits);
+
+int* decode_data_bits_p(int**& decode_array_R, int*& encoded_data_x, int num_data_bits, int num_total_bits);
 
 /* ****************************************************************************
 *   Function Definitions
@@ -37,6 +41,7 @@ int* parity_check(int**& parity_check_array_H, int*& encoded_data_x, int num_par
 
 int main()
 {
+    int i = 0;
     int num_data_bits = 0;
     int num_parity_bits = 0;
     int num_total_bits = 0;
@@ -45,7 +50,8 @@ int main()
     int** parity_check_array_H = 0;
     int** decode_array_R = 0;
     int* encoded_data_x = 0;
-    int* recieved_data_x = 0;
+    int* syndrome_z = 0;
+    int* decoded_data_bits_p = 0;
 
     srand( static_cast<unsigned int>(time(NULL)) );      //For generating the data bits later.
 
@@ -68,7 +74,7 @@ int main()
     data_bits_p = generate_data_bits_array_p(num_data_bits);
 
     //Show the user the generated message.
-    cout << setw(47) << left << "Your Message Is" << ":  [";
+    cout << setw(28) << left << "Your Message Is" << ": [";
 
     for( int i = 0; i < (num_data_bits - 1); i++ )
     {
@@ -90,7 +96,7 @@ int main()
     encoded_data_x = encode_data_bits_p(encode_array_G, data_bits_p, num_total_bits, num_data_bits);
 
     //Show the user the encoded message.
-    cout << setw(47) << left << "Encoded Message Is" << ": [";
+    cout << setw(28) << left << "Encoded Message Is" << ": [";
 
     for( int i = 0; i < (num_total_bits - 1); i++ )
     {
@@ -100,10 +106,10 @@ int main()
     cout << encoded_data_x[num_total_bits - 1] << ']' << endl;
 
     //Induce an random error in the encoded message.
-    recieved_data_x = induce_error_in_x(encoded_data_x, num_total_bits);
+    induce_error_in_x(encoded_data_x, num_total_bits);
 
     //Show the user the recieved message.
-    cout << setw(47) << left << "Recieved Message Is" << ": [";
+    cout << setw(28) << left << "Recieved Message Is" << ": [";
 
     for( int i = 0; i < (num_total_bits - 1); i++ )
     {
@@ -112,7 +118,55 @@ int main()
 
     cout << encoded_data_x[num_total_bits - 1] << ']' << endl;
 
+    //Calculate the syndrome array to find if there was an error.
+    syndrome_z = parity_check(parity_check_array_H, encoded_data_x, num_parity_bits, num_total_bits);
 
+    //Output the syndrome for the user.
+    cout << setw(28) << left << "Parity Check (Little Endian)" << ": [";
+
+    for( int i = 0; i < (num_parity_bits - 1); i++ )
+    {
+        cout << syndrome_z[i] << ' ';
+    }
+
+    cout << syndrome_z[num_parity_bits - 1] << ']' << endl;
+
+    //Determine if there was an error, and fix it if there was.
+    i = 0;
+
+    while( (syndrome_z[i] == 0) && (i < num_parity_bits) )
+    {
+        i += 1;
+    }
+
+    if( i != num_parity_bits )
+    {
+        //There was an error.
+        fix_error(syndrome_z, encoded_data_x, num_parity_bits);
+    }
+
+    //Output the corrected message for the user.
+    cout << setw(28) << left << "Corrected Message Is" << ": [";
+
+    for( int i = 0; i < (num_total_bits - 1); i++ )
+    {
+        cout << encoded_data_x[i] << ' ';
+    }
+
+    cout << encoded_data_x[num_total_bits - 1] << ']' << endl;
+
+    //Decode the message.
+    decoded_data_bits_p = decode_data_bits_p(decode_array_R, encoded_data_x, num_data_bits, num_total_bits);
+
+    //Output the decoded message for the user.
+    cout << setw(28) << left << "Decoded Message Is" << ": [";
+
+    for( int i = 0; i < (num_data_bits - 1); i++ )
+    {
+        cout << decoded_data_bits_p[i] << ' ';
+    }
+
+    cout << decoded_data_bits_p[num_data_bits - 1] << ']' << endl;
 
     //Free up any dynamically allocated variables from main.
 
@@ -136,9 +190,11 @@ int main()
     }
     delete[] decode_array_R;
 
-    //After inducing error in x as I have written it, encoded_data_x and recieved_data_x point to the same memory.
-    //I should probably do something about that, but for now it works, so no complaints here.
-    delete[] recieved_data_x;
+    delete[] encoded_data_x;
+
+    delete[] syndrome_z;
+    
+    delete[] decoded_data_bits_p;
 
     //End scene.
     return 0;
@@ -411,9 +467,8 @@ int* encode_data_bits_p(int**& encode_array_G, int*& data_bits_p, int num_total_
     return encoded_data_x;
 }
 
-int* induce_error_in_x(int*& encoded_data_x, int num_total_bits)
+void induce_error_in_x(int*& encoded_data_x, int num_total_bits)
 {
-    int* recieved_data_x = encoded_data_x;
     int random_bit = 0;
     int read_bit = 0;
 
@@ -424,24 +479,115 @@ int* induce_error_in_x(int*& encoded_data_x, int num_total_bits)
 
     if( random_bit < num_total_bits)
     {
-        read_bit = recieved_data_x[random_bit];
+        read_bit = encoded_data_x[random_bit];
 
         if( read_bit == 0 )
         {
-            recieved_data_x[random_bit] = 1;
+            encoded_data_x[random_bit] = 1;
         }
         else
         {
-            recieved_data_x[random_bit] = 0;
+            encoded_data_x[random_bit] = 0;
         }
     }
 
-    return recieved_data_x;
+    return;
 }
 
 int* parity_check(int**& parity_check_array_H, int*& encoded_data_x, int num_parity_bits, int num_total_bits)
 {
     int* syndrome_z = 0;
+    int sum = 0;
+
+    //Give it the proper size.
+    syndrome_z = new int[num_parity_bits];
+
+    //Initialize with zeroes;
+    for( int i = 0; i < num_parity_bits; i++ )
+    {
+        syndrome_z[i] = 0;
+    }
+
+    //Multiply H and x to recieve initial z.
+    for( int i = 0; i < num_parity_bits; i++ )
+    {
+        sum = 0;
+
+        for( int j = 0; j < num_total_bits; j++ )
+        {
+            sum += parity_check_array_H[i][j] * encoded_data_x[j];
+        }
+
+        syndrome_z[i] = sum;
+    }
+
+    //Performe initial z modulus 2 to get the syndrome z.
+    for( int i = 0; i < num_parity_bits; i++ )
+    {
+        syndrome_z[i] = syndrome_z[i] % 2;
+    }
 
     return syndrome_z;
+}
+
+void fix_error(int*& syndrome_z, int*& encoded_data_x, int num_parity_bits)
+{
+    int error_position = 0;
+    int read_bit = 0;
+
+    //Obtain the location of the error from syndrome z.
+    for( int i = (num_parity_bits - 1); i >= 0; i--)
+    {
+        error_position = error_position << 1;
+        error_position = error_position | syndrome_z[i];
+    }
+
+    //Flip the bit in the specified location.
+    read_bit = encoded_data_x[error_position - 1];
+
+    if (read_bit == 0)
+    {
+        encoded_data_x[error_position - 1] = 1;
+    }
+    else
+    {
+        encoded_data_x[error_position - 1] = 0;
+    }
+
+    return;
+}
+
+int* decode_data_bits_p(int**& decode_array_R, int*& encoded_data_x, int num_data_bits, int num_total_bits)
+{
+    int* decoded_data_bits_p = 0;
+    int sum = 0;
+
+    //Generate the correct size.
+    decoded_data_bits_p = new int[num_data_bits];
+
+    //Initialize with zeroes.
+    for( int i = 0; i < num_data_bits; i++ )
+    {
+        decoded_data_bits_p[i] = 0;
+    }
+
+    //Multiply R by x and modulus by 2 to return to p, the decoded message.
+    for( int i = 0; i < num_data_bits; i++ )
+    {
+        sum = 0;
+
+        for( int j = 0; j < num_total_bits; j++ )
+        {
+            sum += decode_array_R[i][j] * encoded_data_x[j];
+        }
+
+        decoded_data_bits_p[i] = sum;
+    }
+
+    for( int i = 0; i < num_data_bits; i++ )
+    {
+        decoded_data_bits_p[i] = decoded_data_bits_p[i] % 2;
+    }
+
+    return decoded_data_bits_p;
 }
